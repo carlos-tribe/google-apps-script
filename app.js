@@ -16,7 +16,7 @@ function doGet(e) {
     const props = PropertiesService.getScriptProperties();
     const info = {
       ok: true,
-      version: '2.0',
+      version: '2.1',
       now: new Date().toISOString(),
       who: 'webapp-exec-as-owner',
       // quick visibility into config
@@ -96,11 +96,18 @@ function doPost(e) {
     const doc = DocumentApp.openById(newFile.getId());
     const body = doc.getBody();
 
-    // Process each field with markdown parsing
-    const markdownFields = {
+    // Simple text replacements for pre-formatted fields (preserves template formatting)
+    const simpleReplacements = {
       '{{company_name}}': fallback(data.company_name, '[Company Name]'),
       '{{project_name}}': fallback(data.project_name, '[Project Name]'),
-      '{{proposal_date}}': fallback(data.proposal_date, Utilities.formatDate(new Date(), tz, 'MMM d, yyyy')),
+      '{{proposal_date}}': fallback(data.proposal_date, Utilities.formatDate(new Date(), tz, 'MMM d, yyyy'))
+    };
+
+    // Replace simple fields (preserves existing formatting in template)
+    replaceAllPlainText(body, simpleReplacements);
+
+    // Fields that need markdown parsing
+    const markdownFields = {
       '{{context_and_opportunity}}': fallback(data.context_and_opportunity, ''),
       '{{objectives_scope}}': fallback(data.objectives_scope, ''),
       '{{architecture_description}}': fallback(data.architecture_description, ''),
@@ -144,6 +151,20 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
+}
+
+/* ----------------- Simple Text Replacement (Preserves Formatting) ------------------ */
+
+function replaceAllPlainText(body, textMap) {
+  Object.keys(textMap).forEach(token => {
+    const pattern = escapeForReplaceText(token);
+    const value = textMap[token];
+    body.replaceText(pattern, sanitizeForDocs(value));
+  });
+}
+
+function escapeForReplaceText(token) {
+  return token.replace(/([\\^$.*+?()[\]{}|\-])/g, '\\$1');
 }
 
 /* ----------------- Markdown Parsing Functions ------------------ */
